@@ -7,6 +7,34 @@
 #include <glm/glm.hpp>
 using namespace glm;
 
+#include <thread>
+#include <mutex>
+
+#define GLSL(src) "#version 330 core\n" #src
+
+class System
+{
+public:
+	void update()
+	{
+
+	}
+
+	void draw()
+	{
+
+	}
+};
+
+static bool g_Running = true;
+
+void work(System* system)
+{
+	while (g_Running) {
+		printf("Running\n");
+	}
+}
+
 int main(int argc, char* argv[])
 {
 	GLFWwindow* window;
@@ -35,12 +63,28 @@ int main(int argc, char* argv[])
 	}
 	fprintf(stdout, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
 
-	while (!glfwWindowShouldClose(window)) {
+	System sys;
 
+	std::thread workerThread { work, &sys };
+	std::mutex m{};
+
+	while (!glfwWindowShouldClose(window)) {
+		glClearColor(1.0f, 1.0f, 0.0f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT);
+
+		sys.update();
+		sys.draw();
 
 		glfwSwapBuffers(window);
+
 		glfwPollEvents();
 	}
+
+	m.lock();
+	g_Running = false;
+	m.unlock();
+
+	workerThread.join();
 
 	glfwTerminate();
 
