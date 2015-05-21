@@ -1,0 +1,5 @@
+*.opensdf
+*.sdf
+*.swp
+*.exe
+Debug/
