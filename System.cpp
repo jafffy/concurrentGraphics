@@ -77,8 +77,6 @@ bool System::initPhysicsContents()
 	groundRigidBody = new btRigidBody(groundRigidBodyCI);
 	dynamicsWorld->addRigidBody(groundRigidBody);
 
-	rigidBodies.push_back(groundRigidBody);
-
 	return true;
 }
 void System::releasePhysicsContents()
@@ -91,6 +89,12 @@ void System::releasePhysicsContents()
 	}
 
 	rigidBodies.clear();
+
+	dynamicsWorld->removeRigidBody(body);
+	delete groundRigidBody->getMotionState();
+	delete groundRigidBody->getCollisionShape();
+	delete groundRigidBody;
+	groundRigidBody = nullptr;
 
 	delete dynamicsWorld;
 	delete solver;
