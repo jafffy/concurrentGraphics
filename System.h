@@ -1,10 +1,12 @@
 #ifndef SYSTEM_H_
 #define SYSTEM_H_
 
-#include <vector>
+#include "atomic_vector.h"
+#include "Sphere.h"
 
 class System
 {
+	friend void run(System* sys);
 public:
 	System();
 	~System();
@@ -40,7 +42,7 @@ private:
 
 	btRigidBody* groundRigidBody;
 	btRigidBody* fallRigidBody;
-	std::vector<std::pair<btRigidBody*, irr::scene::ISceneNode*>> rigidBodies;
+	atomic_vector<Sphere*> rigidBodies;
 
 	irr::scene::ISceneNode* groundSceneNode;
 	irr::scene::ISceneNode* fallSceneNode;
@@ -49,6 +51,8 @@ private:
 	double globalTimer;
 	double FPSTimer;
 	unsigned FPS;
+
+	bool isRunning;
 };
 
 #endif // SYSTEM_H_

@@ -10,6 +10,7 @@ using namespace irr;
 using namespace core;
 
 System::System()
+	: isRunning(true)
 {
 
 }
@@ -77,21 +78,25 @@ bool System::initPhysicsContents()
 	fallRigidBody = new btRigidBody(fallRigidBodyCI);
 	dynamicsWorld->addRigidBody(fallRigidBody);
 
-	rigidBodies.push_back(std::make_pair(fallRigidBody, fallSceneNode));
-	rigidBodies.push_back(std::make_pair(groundRigidBody, groundSceneNode));
+	rigidBodies.push_back(new Sphere(fallRigidBody, fallSceneNode));
+	rigidBodies.push_back(new Sphere(groundRigidBody, groundSceneNode));
 
 	return true;
 }
 void System::releasePhysicsContents()
 {
-	dynamicsWorld->removeRigidBody(fallRigidBody);
-	delete fallRigidBody->getMotionState();
-	delete fallRigidBody;
+	for (auto body : rigidBodies) {
+		Sphere* sphere = body.get();
+		btRigidBody* rigidBody = sphere->rigidBody;
 
-	dynamicsWorld->removeRigidBody(groundRigidBody);
-	delete groundRigidBody->getMotionState();
-	delete groundRigidBody;
+		dynamicsWorld->removeRigidBody(rigidBody);
+		delete rigidBody->getMotionState();
+		delete rigidBody;
 
+		delete sphere;
+	}
+
+	rigidBodies.clear();
 
 	delete fallShape;
 
@@ -103,6 +108,15 @@ void System::releasePhysicsContents()
 	delete collisionConfiguration;
 	delete dispatcher;
 	delete broadphase;
+}
+
+void run(System* sys)
+{
+	while (sys->device->run()) {
+		sys->draw();
+	}
+
+	sys->isRunning = false;
 }
 
 void System::run()
@@ -150,9 +164,9 @@ void System::draw()
 {
 	for (auto body : rigidBodies) {
 		btTransform trans;
-		body.first->getMotionState()->getWorldTransform(trans);
+		body.get()->rigidBody->getMotionState()->getWorldTransform(trans);
 		const btVector3& origin = trans.getOrigin();
-		body.second->setPosition(vector3df(origin.getX(), origin.getY(), origin.getZ()));
+		body.get()->sceneNode->setPosition(vector3df(origin.getX(), origin.getY(), origin.getZ()));
 	}
 
 	driver->beginScene(true, true, video::SColor(255, 255, 0, 255));
@@ -179,5 +193,5 @@ void System::addSphereBody(double x, double y, double z, double radius)
 	btRigidBody* rigidBody = new btRigidBody(rigidBodyCI);
 	dynamicsWorld->addRigidBody(rigidBody);
 
-	rigidBodies.push_back(std::make_pair(rigidBody, sceneNode));
+	rigidBodies.push_back(new Sphere(rigidBody, sceneNode));
 }

@@ -83,18 +83,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="irrlicht_main.cpp" />
-    <ClCompile Include="main.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-    </ClCompile>
-    <ClCompile Include="physics_main.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-    </ClCompile>
     <ClCompile Include="Sphere.cpp" />
     <ClCompile Include="System.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Particle.h" />
-    <ClInclude Include="ParticleSystem.h" />
+    <ClInclude Include="atomic_vector.h" />
     <ClInclude Include="Sphere.h" />
     <ClInclude Include="System.h" />
   </ItemGroup>
