@@ -10,6 +10,8 @@ enum E_MESSAGE_TYPE {
 class Message
 {
 public:
+	E_MESSAGE_TYPE type;
+	void* user_data;
 };
 
 #endif // MESSAGE_H_

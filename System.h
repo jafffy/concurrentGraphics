@@ -6,6 +6,7 @@
 
 #include "atomic_vector.h"
 #include "Sphere.h"
+#include "Message.h"
 
 class System
 {
@@ -51,7 +52,7 @@ private:
 	btCollisionShape* fallShape; // sphere
 
 	std::vector<btRigidBody*> rigidBodies;
-	std::queue<
+	std::queue<unsigned> unused;
 
 	btRigidBody* groundRigidBody;
 	btRigidBody* fallRigidBody;
@@ -67,6 +68,8 @@ private:
 
 	bool isRunning;
 	CRITICAL_SECTION cs;
+
+	std::queue<Message*> messageQueue;
 };
 
 #endif // SYSTEM_H_
