@@ -71,33 +71,26 @@ bool System::initPhysicsContents()
 	dynamicsWorld->setGravity(btVector3(0, -10, 0));
 
 	groundShape = new btStaticPlaneShape(btVector3(0, 1, 0), 1);
-	fallShape = new btSphereShape(1);
 
 	btDefaultMotionState* groundMotionState = new btDefaultMotionState(btTransform(btQuaternion(0, 0, 0, 1), btVector3(0, -1, 0)));
 	btRigidBody::btRigidBodyConstructionInfo groundRigidBodyCI(0, groundMotionState, groundShape, btVector3(0, 0, 0));
 	groundRigidBody = new btRigidBody(groundRigidBodyCI);
 	dynamicsWorld->addRigidBody(groundRigidBody);
 
+	rigidBodies.push_back(groundRigidBody);
+
 	return true;
 }
 void System::releasePhysicsContents()
 {
 	for (auto body : rigidBodies) {
-		Sphere* sphere = body.get();
-		btRigidBody* rigidBody = sphere->rigidBody;
-
-		dynamicsWorld->removeRigidBody(rigidBody);
-		delete rigidBody->getMotionState();
-		delete rigidBody->getCollisionShape();
-		delete rigidBody;
-
-		delete sphere;
+		dynamicsWorld->removeRigidBody(body);
+		delete body->getMotionState();
+		delete body->getCollisionShape();
+		delete body;
 	}
 
 	rigidBodies.clear();
-
-	delete groundShape;
-
 
 	delete dynamicsWorld;
 	delete solver;
