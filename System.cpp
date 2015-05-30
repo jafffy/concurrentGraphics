@@ -15,7 +15,6 @@ using namespace core;
 System::System()
 	: timer(nullptr), isRunning(true)
 {
-
 }
 System::~System()
 {
@@ -46,11 +45,6 @@ bool System::initGraphicsContents()
 	groundSceneNode->setScale(vector3df(100, 0, 100));
 	groundSceneNode->setMaterialFlag(irr::video::EMF_LIGHTING, false);
 	groundSceneNode->setMaterialTexture(0, driver->getTexture("blue.png"));
-
-	fallSceneNode = smgr->addSphereSceneNode(1.0f);
-	fallSceneNode->setPosition(vector3df(0, 50, 0));
-	fallSceneNode->setMaterialFlag(irr::video::EMF_LIGHTING, false);
-	fallSceneNode->setMaterialTexture(0, driver->getTexture("red.png"));
 
 	camera = smgr->addCameraSceneNodeFPS();
 	camera->setPosition(vector3df(0, 20, -50));
@@ -84,18 +78,6 @@ bool System::initPhysicsContents()
 	groundRigidBody = new btRigidBody(groundRigidBodyCI);
 	dynamicsWorld->addRigidBody(groundRigidBody);
 
-	btDefaultMotionState* fallMotionState =
-		new btDefaultMotionState(btTransform(btQuaternion(0, 0, 0, 1), btVector3(0, 50, 0)));
-	btScalar mass = 1;
-	btVector3 fallInertia(0, 0, 0);
-	fallShape->calculateLocalInertia(mass, fallInertia);
-	btRigidBody::btRigidBodyConstructionInfo fallRigidBodyCI(mass, fallMotionState, fallShape, fallInertia);
-	fallRigidBody = new btRigidBody(fallRigidBodyCI);
-	dynamicsWorld->addRigidBody(fallRigidBody);
-
-	rigidBodies.push_back(new Sphere(fallRigidBody, fallSceneNode));
-	rigidBodies.push_back(new Sphere(groundRigidBody, groundSceneNode));
-
 	return true;
 }
 void System::releasePhysicsContents()
@@ -106,14 +88,13 @@ void System::releasePhysicsContents()
 
 		dynamicsWorld->removeRigidBody(rigidBody);
 		delete rigidBody->getMotionState();
+		delete rigidBody->getCollisionShape();
 		delete rigidBody;
 
 		delete sphere;
 	}
 
 	rigidBodies.clear();
-
-	delete fallShape;
 
 	delete groundShape;
 
@@ -212,13 +193,8 @@ void System::draw()
 	driver->endScene();
 }
 
-void System::addSphereBody(double x, double y, double z, double radius)
+void System::addRigidBody(double x, double y, double z, double radius)
 {
-	scene::ISceneNode* sceneNode = smgr->addSphereSceneNode(radius);
-	sceneNode->setPosition(vector3df(x, y, z));
-	sceneNode->setMaterialFlag(irr::video::EMF_LIGHTING, false);
-	sceneNode->setMaterialTexture(0, driver->getTexture("red.png"));
-
 	btCollisionShape* shape = new btSphereShape(radius);
 	btDefaultMotionState* motionState =
 		new btDefaultMotionState(btTransform(btQuaternion(0, 0, 0, 1), btVector3(x, y, z)));
@@ -229,5 +205,13 @@ void System::addSphereBody(double x, double y, double z, double radius)
 	btRigidBody* rigidBody = new btRigidBody(rigidBodyCI);
 	dynamicsWorld->addRigidBody(rigidBody);
 
-	rigidBodies.push_back(new Sphere(rigidBody, sceneNode));
+	rigidBodies.push_back(rigidBody);
+}
+
+void System::addSceneNode(double x, double y, double z, double radius)
+{
+	scene::ISceneNode* sceneNode = smgr->addSphereSceneNode(radius);
+	sceneNode->setPosition(vector3df(x, y, z));
+	sceneNode->setMaterialFlag(irr::video::EMF_LIGHTING, false);
+	sceneNode->setMaterialTexture(0, driver->getTexture("red.png"));
 }

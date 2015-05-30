@@ -28,7 +28,8 @@ public:
 	void update(double dt);
 	void draw();
 
-	void addSphereBody(double x, double y, double z, double radius);
+	void addRigidBody(double x, double y, double z, double radius);
+	void addSceneNode(double x, double y, double z, double radius);
 
 private:
 	// Graphics
@@ -48,17 +49,12 @@ private:
 	btDiscreteDynamicsWorld* dynamicsWorld;
 
 	btCollisionShape* groundShape;
-	btCollisionShape* fallShape; // sphere
+	btRigidBody* groundRigidBody;
 
 	std::vector<btRigidBody*> rigidBodies;
-	std::queue<
-
-	btRigidBody* groundRigidBody;
-	btRigidBody* fallRigidBody;
-	atomic_vector<Sphere*> rigidBodies;
+	std::queue<unsigned> unused;
 
 	irr::scene::ISceneNode* groundSceneNode;
-	irr::scene::ISceneNode* fallSceneNode;
 	irr::scene::ICameraSceneNode* camera;
 
 	double globalTimer;
@@ -67,6 +63,8 @@ private:
 
 	bool isRunning;
 	CRITICAL_SECTION cs;
+
+	std::queue<Message*> messageQueue;
 };
 
 #endif // SYSTEM_H_
