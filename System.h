@@ -1,15 +1,21 @@
 #ifndef SYSTEM_H_
 #define SYSTEM_H_
 
+#include <map>
+#include <queue>
+
 #include "atomic_vector.h"
 #include "Sphere.h"
 
 class System
 {
-	friend void run(System* sys);
+	friend DWORD WINAPI runGraphics(LPVOID parameter);
 public:
 	System();
 	~System();
+
+	bool init();
+	void release();
 
 	bool initGraphicsContents();
 	void releaseGraphicsContents();
@@ -29,6 +35,10 @@ private:
 	irr::IrrlichtDevice* device;
 	irr::scene::ISceneManager* smgr;
 	irr::video::IVideoDriver* driver;
+	
+	std::map<unsigned, irr::scene::ISceneNode*> sceneNodes;
+
+	irr::ITimer* timer;
 
 	// Physics
 	btBroadphaseInterface* broadphase;
@@ -39,6 +49,9 @@ private:
 
 	btCollisionShape* groundShape;
 	btCollisionShape* fallShape; // sphere
+
+	std::vector<btRigidBody*> rigidBodies;
+	std::queue<
 
 	btRigidBody* groundRigidBody;
 	btRigidBody* fallRigidBody;
@@ -53,6 +66,7 @@ private:
 	unsigned FPS;
 
 	bool isRunning;
+	CRITICAL_SECTION cs;
 };
 
 #endif // SYSTEM_H_

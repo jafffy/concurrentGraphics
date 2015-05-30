@@ -4,19 +4,34 @@
 
 #include <cassert>
 
+#include <Windows.h>
+
 #include "System.h"
+
 
 using namespace irr;
 using namespace core;
 
 System::System()
-	: isRunning(true)
+	: timer(nullptr), isRunning(true)
 {
 
 }
 System::~System()
 {
 
+}
+
+bool System::init()
+{
+	InitializeCriticalSection(&cs);
+
+	return true;
+}
+
+void System::release()
+{
+	DeleteCriticalSection(&cs);
 }
 
 bool System::initGraphicsContents()
@@ -110,18 +125,35 @@ void System::releasePhysicsContents()
 	delete broadphase;
 }
 
-void run(System* sys)
+DWORD WINAPI runGraphics( LPVOID parameter )
 {
-	while (sys->device->run()) {
+	System *sys = (System*)parameter;
+	
+	sys->initGraphicsContents();
+
+	sys->timer = sys->device->getTimer();
+
+	while (sys->device->run()){
 		sys->draw();
 	}
 
+	sys->releaseGraphicsContents();
+
 	sys->isRunning = false;
+
+	return EXIT_SUCCESS;
 }
 
 void System::run()
 {
-	ITimer* timer = device->getTimer();
+	CreateThread(
+		NULL,
+		0,
+		runGraphics,
+		this,
+		0, nullptr);
+
+	while (timer == nullptr);
 
 	u32 lastTime = timer->getRealTime();
 
@@ -129,14 +161,18 @@ void System::run()
 	FPSTimer = 0.0;
 	FPS = 0;
 
-	while (device->run()) {
+	initPhysicsContents();
+	
+
+	while (isRunning) {
 		u32 currentTime = timer->getRealTime();
 		double dt = (currentTime - lastTime) / 1000.0;
 
 		lastTime = currentTime;
 		update(dt);
-		draw();
 	}
+
+	releasePhysicsContents();
 }
 
 void System::update(double dt)

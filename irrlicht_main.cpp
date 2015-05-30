@@ -2,6 +2,8 @@
 
 #include <btBulletDynamicsCommon.h>
 
+#include <Windows.h>
+
 #include <cassert>
 
 #include "System.h"
@@ -14,13 +16,12 @@ using namespace core;
 int main()
 {
 	System sys;
-	sys.initGraphicsContents();
-	sys.initPhysicsContents();
+
+	sys.init();
 
 	sys.run();
 
-	sys.releasePhysicsContents();
-	sys.releaseGraphicsContents();
+	sys.release();
 
 	return 0;
 }
