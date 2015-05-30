@@ -3,9 +3,9 @@
 
 #include <map>
 #include <queue>
+#include <boost/lockfree/queue.hpp>
+#include <boost/atomic.hpp>
 
-#include "atomic_vector.h"
-#include "Sphere.h"
 #include "Message.h"
 
 struct InsertPacket
@@ -87,7 +87,7 @@ private:
 	btRigidBody* groundRigidBody;
 
 	std::vector<btRigidBody*> rigidBodies;
-	std::queue<unsigned> unused;
+	std::queue<unsigned> unused;	
 
 	irr::scene::ISceneNode* groundSceneNode;
 	irr::scene::ICameraSceneNode* camera;
@@ -98,8 +98,7 @@ private:
 
 	bool isRunning;
 	CRITICAL_SECTION cs;
-
-	std::queue<Message*> messageQueue;
+	boost::lockfree::queue<Message*, boost::lockfree::capacity<50>> messageQueue;
 };
 
 #endif // SYSTEM_H_

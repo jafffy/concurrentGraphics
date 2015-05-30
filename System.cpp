@@ -90,7 +90,7 @@ void System::releasePhysicsContents()
 
 	rigidBodies.clear();
 
-	dynamicsWorld->removeRigidBody(body);
+	dynamicsWorld->removeRigidBody(groundRigidBody);
 	delete groundRigidBody->getMotionState();
 	delete groundRigidBody->getCollisionShape();
 	delete groundRigidBody;
@@ -186,8 +186,10 @@ void System::update(double dt)
 void System::draw()
 {
 	while (messageQueue.empty() == false) {
-		auto msg = messageQueue.front();
-		messageQueue.pop();
+		Message* msg = nullptr;
+		messageQueue.pop(msg);
+
+		assert(msg != nullptr);
 
 		if (msg->type == EMT_INSERT) {
 			auto packet = reinterpret_cast<InsertPacket*>(msg->user_data);
