@@ -9,6 +9,7 @@
 
 #include "System.h"
 
+const double k_timeOut = 7.0;
 
 using namespace irr;
 using namespace core;
@@ -20,10 +21,18 @@ System::System()
 	if (!messageQueue.is_lock_free())
 		std::cout << "not ";
 	std::cout << "lockfree" << std::endl;
+
+	fopen_s(&flog, "log.txt", "wt");
+
+	if (flog == nullptr) {
+		printf("file open failed\n");
+	}
 }
 System::~System()
 {
-
+	if (flog) {
+		fclose(flog);
+	}
 }
 
 bool System::init()
@@ -87,6 +96,10 @@ bool System::initPhysicsContents()
 void System::releasePhysicsContents()
 {
 	for (auto body : rigidBodies) {
+		if (body == nullptr) {
+			continue;
+		}
+
 		dynamicsWorld->removeRigidBody(body);
 		delete body->getMotionState();
 		delete body->getCollisionShape();
@@ -127,7 +140,9 @@ DWORD WINAPI runGraphics( LPVOID parameter )
 	sys->isRunning = false;
 	LeaveCriticalSection(&sys->cs);
 
-	WaitForSingleObject(sys->physicsHandle,INFINITE);
+	WaitForSingleObject(sys->physicsHandle, NULL);
+
+	printf("Graphics Exit\n");
 
 	return EXIT_SUCCESS;
 }
@@ -160,6 +175,7 @@ void System::run()
 
 		lastTime = currentTime;
 		update(dt);
+
 	}
 
 	releasePhysicsContents();
@@ -171,16 +187,22 @@ void System::update(double dt)
 
 	for (unsigned i = 0; i < rigidBodies.size(); ++i) {
 		auto body = rigidBodies[i];
+
+		if (body == nullptr) {
+			continue;
+		}
+
 		btTransform trans;
 		body->getMotionState()->getWorldTransform(trans);
 
 		const btVector3& origin = trans.getOrigin();
 		messageQueue.push(new Message(EMT_UPDATE, new UpdatePacket(origin.getX(), origin.getY(), origin.getZ(), i)));
+		fprintf(flog, "EMT_UPDATE, %d\n", i);
 	}
 
 	if (globalTimer > 0.1) {
 		addRigidBody((rand() % SHRT_MAX) / (double)SHRT_MAX, 50, (rand() % SHRT_MAX) / (double)SHRT_MAX, 1.0);
-
+		
 		globalTimer = 0.0;
 	}
 
@@ -194,6 +216,27 @@ void System::update(double dt)
 	globalTimer += dt;
 	FPSTimer += dt;
 	++FPS;
+
+	for (int i = 0; i < rigidBodies.size(); ++i){
+		if (rigidBodies[i] == nullptr) {
+			continue;
+		}
+
+		timers[i] += dt;
+		if (timers[i] > k_timeOut){
+			auto body = rigidBodies[i];
+			dynamicsWorld->removeRigidBody(body);
+			delete body->getMotionState();
+			delete body->getCollisionShape();
+			delete body;
+
+			rigidBodies[i] = nullptr;
+			unused.push(i);
+			messageQueue.push(new Message(EMT_ERASE, new ErasePacket(i)));
+
+		}
+	}
+
 }
 void System::draw()
 {
@@ -231,6 +274,7 @@ void System::draw()
 	driver->endScene();
 }
 
+
 void System::addRigidBody(double x, double y, double z, double radius)
 {
 	btCollisionShape* shape = new btSphereShape(radius);
@@ -248,16 +292,20 @@ void System::addRigidBody(double x, double y, double z, double radius)
 	if (unused.empty()) {
 		idx = rigidBodies.size();
 		rigidBodies.push_back(rigidBody);
+		timers.push_back(0.0);
+
 	} else {
 		idx = unused.front();
 		unused.pop();
-
 		rigidBodies[idx] = rigidBody;
+		timers[idx] = 0.0;
 	}
 
 	assert(idx != -1);
 
 	messageQueue.push(new Message(EMT_INSERT, new InsertPacket(x, y, z, radius, idx)));
+
+	fprintf(flog, "EMT_INSERT, %d\n", idx);
 }
 
 void System::addSceneNode(double x, double y, double z, double radius, unsigned idx)
@@ -276,6 +324,8 @@ void System::eraseSceneNode(unsigned idx)
 {
 	auto it = sceneNodes.find(idx);
 	assert(it != sceneNodes.end());
+
+	it->second->remove();
 
 	sceneNodes.erase(it);
 }

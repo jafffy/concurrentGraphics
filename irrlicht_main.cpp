@@ -23,5 +23,7 @@ int main()
 
 	sys.release();
 
+	printf("Physics Exit\n");
+
 	return 0;
 }

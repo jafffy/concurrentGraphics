@@ -87,6 +87,8 @@ private:
 	btRigidBody* groundRigidBody;
 
 	std::vector<btRigidBody*> rigidBodies;
+	std::vector<double> timers;
+
 	std::queue<unsigned> unused;	
 
 	irr::scene::ISceneNode* groundSceneNode;
@@ -95,12 +97,15 @@ private:
 	double globalTimer;
 	double FPSTimer;
 	unsigned FPS;
-
+	
 	bool isRunning;
 	CRITICAL_SECTION cs;
 	boost::lockfree::spsc_queue<Message*, boost::lockfree::capacity<1024>> messageQueue;
 
 	HANDLE graphicsHandle, physicsHandle;
+
+	// Debug
+	FILE* flog;
 };
 
 #endif // SYSTEM_H_
