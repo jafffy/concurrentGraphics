@@ -7,6 +7,38 @@
 #include "atomic_vector.h"
 #include "Sphere.h"
 
+struct InsertPacket
+{
+	double x, y, z, radius;
+	unsigned idx;
+
+	InsertPacket(const double &x, const double &y, const double &z, const double &radius, const unsigned &idx)
+	: x(x), y(y), z(z), radius(radius), idx(idx)
+	{
+	}
+};
+
+struct ErasePacket
+{
+	unsigned idx;
+
+	ErasePacket(const unsigned& idx)
+	: idx(idx)
+	{
+	}
+};
+
+struct UpdatePacket
+{
+	double x, y, z;
+	unsigned idx;
+
+	UpdatePacket(const double &x, const double &y, const double &z, const unsigned &idx)
+	: x(x), y(y), z(z), idx(idx)
+	{
+	}
+};
+
 class System
 {
 	friend DWORD WINAPI runGraphics(LPVOID parameter);
@@ -29,7 +61,9 @@ public:
 	void draw();
 
 	void addRigidBody(double x, double y, double z, double radius);
-	void addSceneNode(double x, double y, double z, double radius);
+	void addSceneNode(double x, double y, double z, double radius, unsigned idx);
+	void eraseSceneNode(unsigned idx);
+	void updateSceneNode(double x, double y, double z, unsigned idx);
 
 private:
 	// Graphics
