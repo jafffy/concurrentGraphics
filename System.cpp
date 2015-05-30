@@ -15,7 +15,6 @@ using namespace core;
 System::System()
 	: timer(nullptr), isRunning(true)
 {
-
 }
 System::~System()
 {
@@ -46,11 +45,6 @@ bool System::initGraphicsContents()
 	groundSceneNode->setScale(vector3df(100, 0, 100));
 	groundSceneNode->setMaterialFlag(irr::video::EMF_LIGHTING, false);
 	groundSceneNode->setMaterialTexture(0, driver->getTexture("blue.png"));
-
-	fallSceneNode = smgr->addSphereSceneNode(1.0f);
-	fallSceneNode->setPosition(vector3df(0, 50, 0));
-	fallSceneNode->setMaterialFlag(irr::video::EMF_LIGHTING, false);
-	fallSceneNode->setMaterialTexture(0, driver->getTexture("red.png"));
 
 	camera = smgr->addCameraSceneNodeFPS();
 	camera->setPosition(vector3df(0, 20, -50));
@@ -84,18 +78,6 @@ bool System::initPhysicsContents()
 	groundRigidBody = new btRigidBody(groundRigidBodyCI);
 	dynamicsWorld->addRigidBody(groundRigidBody);
 
-	btDefaultMotionState* fallMotionState =
-		new btDefaultMotionState(btTransform(btQuaternion(0, 0, 0, 1), btVector3(0, 50, 0)));
-	btScalar mass = 1;
-	btVector3 fallInertia(0, 0, 0);
-	fallShape->calculateLocalInertia(mass, fallInertia);
-	btRigidBody::btRigidBodyConstructionInfo fallRigidBodyCI(mass, fallMotionState, fallShape, fallInertia);
-	fallRigidBody = new btRigidBody(fallRigidBodyCI);
-	dynamicsWorld->addRigidBody(fallRigidBody);
-
-	rigidBodies.push_back(new Sphere(fallRigidBody, fallSceneNode));
-	rigidBodies.push_back(new Sphere(groundRigidBody, groundSceneNode));
-
 	return true;
 }
 void System::releasePhysicsContents()
@@ -106,14 +88,13 @@ void System::releasePhysicsContents()
 
 		dynamicsWorld->removeRigidBody(rigidBody);
 		delete rigidBody->getMotionState();
+		delete rigidBody->getCollisionShape();
 		delete rigidBody;
 
 		delete sphere;
 	}
 
 	rigidBodies.clear();
-
-	delete fallShape;
 
 	delete groundShape;
 
@@ -179,8 +160,17 @@ void System::update(double dt)
 {
 	dynamicsWorld->stepSimulation(dt, 10);
 
+	for (unsigned i = 0; i < rigidBodies.size(); ++i) {
+		auto body = rigidBodies[i];
+		btTransform trans;
+		body->getMotionState()->getWorldTransform(trans);
+
+		const btVector3& origin = trans.getOrigin();
+		messageQueue.push(new Message(EMT_UPDATE, new UpdatePacket(origin.getX(), origin.getY(), origin.getZ(), i)));
+	}
+
 	if (globalTimer > 0.1) {
-		addSphereBody((rand() % SHRT_MAX) / (double)SHRT_MAX, 50, (rand() % SHRT_MAX) / (double)SHRT_MAX, 1.0);
+		addRigidBody((rand() % SHRT_MAX) / (double)SHRT_MAX, 50, (rand() % SHRT_MAX) / (double)SHRT_MAX, 1.0);
 
 		globalTimer = 0.0;
 	}
@@ -198,11 +188,29 @@ void System::update(double dt)
 }
 void System::draw()
 {
-	for (auto body : rigidBodies) {
-		btTransform trans;
-		body.get()->rigidBody->getMotionState()->getWorldTransform(trans);
-		const btVector3& origin = trans.getOrigin();
-		body.get()->sceneNode->setPosition(vector3df(origin.getX(), origin.getY(), origin.getZ()));
+	while (messageQueue.empty() == false) {
+		auto msg = messageQueue.front();
+		messageQueue.pop();
+
+		if (msg->type == EMT_INSERT) {
+			auto packet = reinterpret_cast<InsertPacket*>(msg->user_data);
+			assert(packet);
+			addSceneNode(packet->x, packet->y, packet->z, packet->radius, packet->idx);
+		} else if (msg->type == EMT_ERASE) {
+			auto packet = reinterpret_cast<ErasePacket*>(msg->user_data);			
+			eraseSceneNode(packet->idx);
+			
+		} else if (msg->type == EMT_UPDATE) {
+			auto packet = reinterpret_cast<UpdatePacket*>(msg->user_data);
+			updateSceneNode(packet->x, packet->y, packet->z, packet->idx);
+		} else {
+			printf("Invalid message\n");
+			continue;
+		}
+
+		delete msg->user_data;
+		msg->user_data = nullptr;
+		msg->drop();
 	}
 
 	driver->beginScene(true, true, video::SColor(255, 255, 0, 255));
@@ -212,13 +220,8 @@ void System::draw()
 	driver->endScene();
 }
 
-void System::addSphereBody(double x, double y, double z, double radius)
+void System::addRigidBody(double x, double y, double z, double radius)
 {
-	scene::ISceneNode* sceneNode = smgr->addSphereSceneNode(radius);
-	sceneNode->setPosition(vector3df(x, y, z));
-	sceneNode->setMaterialFlag(irr::video::EMF_LIGHTING, false);
-	sceneNode->setMaterialTexture(0, driver->getTexture("red.png"));
-
 	btCollisionShape* shape = new btSphereShape(radius);
 	btDefaultMotionState* motionState =
 		new btDefaultMotionState(btTransform(btQuaternion(0, 0, 0, 1), btVector3(x, y, z)));
@@ -229,5 +232,41 @@ void System::addSphereBody(double x, double y, double z, double radius)
 	btRigidBody* rigidBody = new btRigidBody(rigidBodyCI);
 	dynamicsWorld->addRigidBody(rigidBody);
 
-	rigidBodies.push_back(new Sphere(rigidBody, sceneNode));
+	int idx = -1;
+
+	if (unused.empty()) {
+		idx = rigidBodies.size();
+	} else {
+		idx = unused.front();
+		unused.pop();
+	}
+
+	assert(idx != -1);
+
+	rigidBodies.push_back(rigidBody);
+
+	messageQueue.push(new Message(EMT_INSERT, new InsertPacket(x, y, z, radius, idx)));
+}
+
+void System::addSceneNode(double x, double y, double z, double radius, unsigned idx)
+{
+	scene::ISceneNode* sceneNode = smgr->addSphereSceneNode(radius);
+	sceneNode->setPosition(vector3df(x, y, z));
+	sceneNode->setMaterialFlag(irr::video::EMF_LIGHTING, false);
+	sceneNode->setMaterialTexture(0, driver->getTexture("red.png"));
+
+	sceneNodes[idx] = sceneNode;
+}
+
+void System::eraseSceneNode(unsigned idx)
+{
+	auto it = sceneNodes.find(idx);
+	assert(it != sceneNodes.end());
+
+	sceneNodes.erase(it);
+}
+
+void System::updateSceneNode(double x, double y, double z, unsigned idx)
+{
+	sceneNodes[idx]->setPosition(vector3df(x, y, z));
 }
