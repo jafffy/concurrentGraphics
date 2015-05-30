@@ -3,7 +3,7 @@
 
 #include <map>
 #include <queue>
-#include <boost/lockfree/queue.hpp>
+#include <boost/lockfree/spsc_queue.hpp>
 #include <boost/atomic.hpp>
 
 #include "Message.h"
@@ -98,7 +98,9 @@ private:
 
 	bool isRunning;
 	CRITICAL_SECTION cs;
-	boost::lockfree::queue<Message*, boost::lockfree::capacity<50>> messageQueue;
+	boost::lockfree::spsc_queue<Message*, boost::lockfree::capacity<1024>> messageQueue;
+
+	HANDLE graphicsHandle, physicsHandle;
 };
 
 #endif // SYSTEM_H_

@@ -2,6 +2,7 @@
 
 #include <btBulletDynamicsCommon.h>
 
+#include <iostream>
 #include <cassert>
 
 #include <Windows.h>
@@ -13,8 +14,12 @@ using namespace irr;
 using namespace core;
 
 System::System()
-	: timer(nullptr), isRunning(true)
+	: timer(nullptr), isRunning(true), graphicsHandle(NULL), physicsHandle(NULL)
 {
+	std::cout << "boost::lockfree::queue is ";
+	if (!messageQueue.is_lock_free())
+		std::cout << "not ";
+	std::cout << "lockfree" << std::endl;
 }
 System::~System()
 {
@@ -106,6 +111,8 @@ void System::releasePhysicsContents()
 DWORD WINAPI runGraphics( LPVOID parameter )
 {
 	System *sys = (System*)parameter;
+
+	sys->graphicsHandle = GetCurrentThread();
 	
 	sys->initGraphicsContents();
 
@@ -116,14 +123,19 @@ DWORD WINAPI runGraphics( LPVOID parameter )
 	}
 
 	sys->releaseGraphicsContents();
-
+	EnterCriticalSection(&sys->cs);
 	sys->isRunning = false;
+	LeaveCriticalSection(&sys->cs);
+
+	WaitForSingleObject(sys->physicsHandle,INFINITE);
 
 	return EXIT_SUCCESS;
 }
 
 void System::run()
 {
+	physicsHandle = GetCurrentThread();
+
 	CreateThread(
 		NULL,
 		0,
@@ -235,14 +247,15 @@ void System::addRigidBody(double x, double y, double z, double radius)
 
 	if (unused.empty()) {
 		idx = rigidBodies.size();
+		rigidBodies.push_back(rigidBody);
 	} else {
 		idx = unused.front();
 		unused.pop();
+
+		rigidBodies[idx] = rigidBody;
 	}
 
 	assert(idx != -1);
-
-	rigidBodies.push_back(rigidBody);
 
 	messageQueue.push(new Message(EMT_INSERT, new InsertPacket(x, y, z, radius, idx)));
 }
@@ -253,6 +266,8 @@ void System::addSceneNode(double x, double y, double z, double radius, unsigned 
 	sceneNode->setPosition(vector3df(x, y, z));
 	sceneNode->setMaterialFlag(irr::video::EMF_LIGHTING, false);
 	sceneNode->setMaterialTexture(0, driver->getTexture("red.png"));
+
+	assert(sceneNode);
 
 	sceneNodes[idx] = sceneNode;
 }
@@ -267,5 +282,10 @@ void System::eraseSceneNode(unsigned idx)
 
 void System::updateSceneNode(double x, double y, double z, unsigned idx)
 {
+	if (sceneNodes.find(idx) == sceneNodes.end()) {
+		printf("not found %d\n", idx);
+		return;
+	}
+
 	sceneNodes[idx]->setPosition(vector3df(x, y, z));
 }
