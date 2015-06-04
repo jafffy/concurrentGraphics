@@ -27,11 +27,21 @@ System::System()
 	if (flog == nullptr) {
 		printf("file open failed\n");
 	}
+
+	fopen_s(&fmessageQueue, "messageQueue.txt", "wt");
+
+	if (fmessageQueue == nullptr) {
+		printf("file open failed\n");
+	}
 }
 System::~System()
 {
 	if (flog) {
 		fclose(flog);
+	}
+
+	if (fmessageQueue) {
+		fclose(fmessageQueue);
 	}
 }
 
@@ -69,6 +79,10 @@ bool System::initGraphicsContents()
 void System::releaseGraphicsContents()
 {
 	device->drop();
+
+	while (messageQueue.empty() == false) {
+		messageQueue.pop();
+	}
 }
 
 bool System::initPhysicsContents()
@@ -151,12 +165,7 @@ void System::run()
 {
 	physicsHandle = GetCurrentThread();
 
-	CreateThread(
-		NULL,
-		0,
-		runGraphics,
-		this,
-		0, nullptr);
+	CreateThread(NULL, 0, runGraphics, this, 0, nullptr);
 
 	while (timer == nullptr);
 
@@ -167,7 +176,6 @@ void System::run()
 	FPS = 0;
 
 	initPhysicsContents();
-	
 
 	while (isRunning) {
 		u32 currentTime = timer->getRealTime();
@@ -175,7 +183,6 @@ void System::run()
 
 		lastTime = currentTime;
 		update(dt);
-
 	}
 
 	releasePhysicsContents();
@@ -202,7 +209,7 @@ void System::update(double dt)
 
 	if (globalTimer > 0.1) {
 		addRigidBody((rand() % SHRT_MAX) / (double)SHRT_MAX, 50, (rand() % SHRT_MAX) / (double)SHRT_MAX, 1.0);
-		
+
 		globalTimer = 0.0;
 	}
 
@@ -233,13 +240,27 @@ void System::update(double dt)
 			rigidBodies[i] = nullptr;
 			unused.push(i);
 			messageQueue.push(new Message(EMT_ERASE, new ErasePacket(i)));
-
+			fprintf(flog, "EMT_ERASE, %d\n", i);
 		}
 	}
 
+	unsigned write_available = messageQueue.write_available();
+	while (write_available < 10
+		&& messageQueue.empty() == false);
 }
+
 void System::draw()
-{
+{	
+	std::queue<Message*> localQueue;
+	while (messageQueue.empty() == false) {
+		Message* msg = nullptr;
+		messageQueue.pop(msg);
+
+		assert(msg != nullptr);
+
+		localQueue.push(msg);
+	}
+
 	while (messageQueue.empty() == false) {
 		Message* msg = nullptr;
 		messageQueue.pop(msg);
@@ -250,13 +271,15 @@ void System::draw()
 			auto packet = reinterpret_cast<InsertPacket*>(msg->user_data);
 			assert(packet);
 			addSceneNode(packet->x, packet->y, packet->z, packet->radius, packet->idx);
+			fprintf(fmessageQueue, "EMT_INSERT, %d\n", packet->idx);
 		} else if (msg->type == EMT_ERASE) {
 			auto packet = reinterpret_cast<ErasePacket*>(msg->user_data);			
 			eraseSceneNode(packet->idx);
-			
+			fprintf(fmessageQueue, "EMT_ERASE, %d\n", packet->idx);
 		} else if (msg->type == EMT_UPDATE) {
 			auto packet = reinterpret_cast<UpdatePacket*>(msg->user_data);
 			updateSceneNode(packet->x, packet->y, packet->z, packet->idx);
+			fprintf(fmessageQueue, "EMT_UPDATE, %d\n", packet->idx);
 		} else {
 			printf("Invalid message\n");
 			continue;
@@ -293,10 +316,11 @@ void System::addRigidBody(double x, double y, double z, double radius)
 		idx = rigidBodies.size();
 		rigidBodies.push_back(rigidBody);
 		timers.push_back(0.0);
-
 	} else {
+		assert(unused.empty() == false);
 		idx = unused.front();
 		unused.pop();
+		assert(rigidBodies[idx] == nullptr);
 		rigidBodies[idx] = rigidBody;
 		timers[idx] = 0.0;
 	}
@@ -304,7 +328,6 @@ void System::addRigidBody(double x, double y, double z, double radius)
 	assert(idx != -1);
 
 	messageQueue.push(new Message(EMT_INSERT, new InsertPacket(x, y, z, radius, idx)));
-
 	fprintf(flog, "EMT_INSERT, %d\n", idx);
 }
 
@@ -332,10 +355,11 @@ void System::eraseSceneNode(unsigned idx)
 
 void System::updateSceneNode(double x, double y, double z, unsigned idx)
 {
-	if (sceneNodes.find(idx) == sceneNodes.end()) {
+	auto it = sceneNodes.find(idx);
+	if (it == sceneNodes.end()) {
 		printf("not found %d\n", idx);
 		return;
 	}
 
-	sceneNodes[idx]->setPosition(vector3df(x, y, z));
+	it->second->setPosition(vector3df(x, y, z));
 }

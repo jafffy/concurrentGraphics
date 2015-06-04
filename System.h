@@ -106,6 +106,7 @@ private:
 
 	// Debug
 	FILE* flog;
+	FILE* fmessageQueue;
 };
 
 #endif // SYSTEM_H_
