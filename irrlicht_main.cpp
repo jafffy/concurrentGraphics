@@ -13,9 +13,13 @@ using namespace irr;
 using namespace core;
 
 
-int main()
+int main(int argc, char* argv[])
 {
-	System sys;
+	double timeOut = 7.0;
+	if (argc > 1) {
+		sscanf_s(argv[1], "%lf", &timeOut);
+	}
+	System sys(timeOut);
 
 	sys.init();
 

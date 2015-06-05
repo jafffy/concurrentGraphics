@@ -9,13 +9,11 @@
 
 #include "System.h"
 
-const double k_timeOut = 7.0;
-
 using namespace irr;
 using namespace core;
 
-System::System()
-	: timer(nullptr), isRunning(true), graphicsHandle(NULL), physicsHandle(NULL)
+System::System(const double& timeOut)
+	: k_timeOut(timeOut), timer(nullptr), isRunning(true), graphicsHandle(NULL), physicsHandle(NULL)
 {
 	std::cout << "boost::lockfree::queue is ";
 	if (!messageQueue.is_lock_free())
@@ -79,10 +77,6 @@ bool System::initGraphicsContents()
 void System::releaseGraphicsContents()
 {
 	device->drop();
-
-	while (messageQueue.empty() == false) {
-		messageQueue.pop();
-	}
 }
 
 bool System::initPhysicsContents()
@@ -150,11 +144,14 @@ DWORD WINAPI runGraphics( LPVOID parameter )
 	}
 
 	sys->releaseGraphicsContents();
-	EnterCriticalSection(&sys->cs);
+
 	sys->isRunning = false;
-	LeaveCriticalSection(&sys->cs);
 
 	WaitForSingleObject(sys->physicsHandle, NULL);
+
+	while (sys->messageQueue.empty() == false) {
+		sys->messageQueue.pop();
+	}
 
 	printf("Graphics Exit\n");
 
@@ -167,9 +164,11 @@ void System::run()
 
 	CreateThread(NULL, 0, runGraphics, this, 0, nullptr);
 
-	while (timer == nullptr);
+	LARGE_INTEGER lastTime;
+	LARGE_INTEGER frequency;
 
-	u32 lastTime = timer->getRealTime();
+	QueryPerformanceFrequency(&frequency);
+	QueryPerformanceCounter(&lastTime);
 
 	globalTimer = 0.0;
 	FPSTimer = 0.0;
@@ -178,8 +177,10 @@ void System::run()
 	initPhysicsContents();
 
 	while (isRunning) {
-		u32 currentTime = timer->getRealTime();
-		double dt = (currentTime - lastTime) / 1000.0;
+		LARGE_INTEGER currentTime;
+
+		QueryPerformanceCounter(&currentTime);
+		double dt = double(currentTime.QuadPart - lastTime.QuadPart) / frequency.QuadPart;
 
 		lastTime = currentTime;
 		update(dt);
@@ -190,7 +191,7 @@ void System::run()
 
 void System::update(double dt)
 {
-	dynamicsWorld->stepSimulation(dt, 10);
+	dynamicsWorld->stepSimulation((float)dt, 10);
 
 	for (unsigned i = 0; i < rigidBodies.size(); ++i) {
 		auto body = rigidBodies[i];
@@ -203,7 +204,7 @@ void System::update(double dt)
 		body->getMotionState()->getWorldTransform(trans);
 
 		const btVector3& origin = trans.getOrigin();
-		messageQueue.push(new Message(EMT_UPDATE, new UpdatePacket(origin.getX(), origin.getY(), origin.getZ(), i)));
+		sendMessage(new Message(EMT_UPDATE, new UpdatePacket(origin.getX(), origin.getY(), origin.getZ(), i)));
 		fprintf(flog, "EMT_UPDATE, %d\n", i);
 	}
 
@@ -224,12 +225,13 @@ void System::update(double dt)
 	FPSTimer += dt;
 	++FPS;
 
-	for (int i = 0; i < rigidBodies.size(); ++i){
+	for (unsigned int i = 0; i < rigidBodies.size(); ++i){
 		if (rigidBodies[i] == nullptr) {
 			continue;
 		}
 
 		timers[i] += dt;
+
 		if (timers[i] > k_timeOut){
 			auto body = rigidBodies[i];
 			dynamicsWorld->removeRigidBody(body);
@@ -239,31 +241,19 @@ void System::update(double dt)
 
 			rigidBodies[i] = nullptr;
 			unused.push(i);
-			messageQueue.push(new Message(EMT_ERASE, new ErasePacket(i)));
+			sendMessage(new Message(EMT_ERASE, new ErasePacket(i)));
 			fprintf(flog, "EMT_ERASE, %d\n", i);
 		}
 	}
-
-	unsigned write_available = messageQueue.write_available();
-	while (write_available < 10
-		&& messageQueue.empty() == false);
 }
 
 void System::draw()
 {	
-	std::queue<Message*> localQueue;
-	while (messageQueue.empty() == false) {
-		Message* msg = nullptr;
-		messageQueue.pop(msg);
+	auto &localQueue = messageQueue;
 
-		assert(msg != nullptr);
-
-		localQueue.push(msg);
-	}
-
-	while (messageQueue.empty() == false) {
-		Message* msg = nullptr;
-		messageQueue.pop(msg);
+	while (localQueue.empty() == false) {
+		Message* msg = localQueue.front();
+		localQueue.pop();
 
 		assert(msg != nullptr);
 
@@ -300,7 +290,7 @@ void System::draw()
 
 void System::addRigidBody(double x, double y, double z, double radius)
 {
-	btCollisionShape* shape = new btSphereShape(radius);
+	btCollisionShape* shape = new btSphereShape((float)radius);
 	btDefaultMotionState* motionState =
 		new btDefaultMotionState(btTransform(btQuaternion(0, 0, 0, 1), btVector3(x, y, z)));
 	btScalar mass = 1;
@@ -327,7 +317,7 @@ void System::addRigidBody(double x, double y, double z, double radius)
 
 	assert(idx != -1);
 
-	messageQueue.push(new Message(EMT_INSERT, new InsertPacket(x, y, z, radius, idx)));
+	sendMessage(new Message(EMT_INSERT, new InsertPacket(x, y, z, radius, idx)));
 	fprintf(flog, "EMT_INSERT, %d\n", idx);
 }
 
@@ -362,4 +352,14 @@ void System::updateSceneNode(double x, double y, double z, unsigned idx)
 	}
 
 	it->second->setPosition(vector3df(x, y, z));
+}
+
+void System::sendMessage(Message* message)
+{
+	messageQueue.push(message);
+
+	// flush
+	unsigned write_available = messageQueue.write_available();
+	while (write_available < 10
+		&& messageQueue.empty() == false);
 }

@@ -43,8 +43,10 @@ struct UpdatePacket
 class System
 {
 	friend DWORD WINAPI runGraphics(LPVOID parameter);
+	const double k_timeOut;
+
 public:
-	System();
+	System(const double &timeOut);
 	~System();
 
 	bool init();
@@ -67,6 +69,8 @@ public:
 	void updateSceneNode(double x, double y, double z, unsigned idx);
 
 private:
+	void sendMessage(Message* message);
+
 	// Graphics
 	irr::IrrlichtDevice* device;
 	irr::scene::ISceneManager* smgr;
