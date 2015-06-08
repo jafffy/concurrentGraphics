@@ -211,14 +211,14 @@ void System::update(double dt)
 	if (globalTimer > 0.1) {
 		addRigidBody((rand() % SHRT_MAX) / (double)SHRT_MAX, 50, (rand() % SHRT_MAX) / (double)SHRT_MAX, 1.0);
 
-		globalTimer = 0.0;
+		globalTimer = fmod(globalTimer, 0.1);
 	}
 
 	if (FPSTimer > 1.0) {
 		printf("%d\n", FPS);
 
 		FPS = 0;
-		FPSTimer = 0.0;
+		FPSTimer = fmod(FPSTimer, 0.1);
 	}
 
 	globalTimer += dt;
