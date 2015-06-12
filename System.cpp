@@ -8,6 +8,7 @@
 #include <Windows.h>
 
 #include "System.h"
+#include <hash_map>
 
 using namespace irr;
 using namespace core;
@@ -52,6 +53,13 @@ bool System::init()
 
 void System::release()
 {
+	update_stat.commit();
+	draw_stat.commit();
+
+	printf("update : %lf %lf\ndraw : %lf %lf\n",
+		update_stat.meanFPS, update_stat.stddevFPS,
+		draw_stat.meanFPS, draw_stat.stddevFPS);
+
 	DeleteCriticalSection(&cs);
 }
 
@@ -139,8 +147,24 @@ DWORD WINAPI runGraphics( LPVOID parameter )
 
 	sys->timer = sys->device->getTimer();
 
+	LARGE_INTEGER lastTime;
+	LARGE_INTEGER frequency;
+
+	QueryPerformanceFrequency(&frequency);
+	QueryPerformanceCounter(&lastTime);
+
+	sys->drawFPSTimer = 0.0;
+	sys->drawFPS = 0;
+
 	while (sys->device->run()){
-		sys->draw();
+		LARGE_INTEGER currentTime;
+
+		QueryPerformanceCounter(&currentTime);
+		double dt = double(currentTime.QuadPart - lastTime.QuadPart) / frequency.QuadPart;
+
+		lastTime = currentTime;
+
+		sys->draw(dt);
 	}
 
 	sys->releaseGraphicsContents();
@@ -189,6 +213,42 @@ void System::run()
 	releasePhysicsContents();
 }
 
+void System::runSingleThread()
+{
+	LARGE_INTEGER lastTime;
+	LARGE_INTEGER frequency;
+
+	QueryPerformanceFrequency(&frequency);
+	QueryPerformanceCounter(&lastTime);
+
+	globalTimer = 0.0;
+	FPSTimer = 0.0;
+	FPS = 0;
+
+	drawFPSTimer = 0.0;
+	drawFPS = 0;
+
+	initPhysicsContents();
+	initGraphicsContents();
+	timer = device->getTimer();
+
+	while (device->run()) {
+		LARGE_INTEGER currentTime;
+
+		QueryPerformanceCounter(&currentTime);
+		double dt = double(currentTime.QuadPart - lastTime.QuadPart) / frequency.QuadPart;
+
+		lastTime = currentTime;
+		update(dt);
+		draw(dt);
+	}
+
+	releaseGraphicsContents();
+	releasePhysicsContents();
+
+	printf("Exit\n");
+}
+
 void System::update(double dt)
 {
 	dynamicsWorld->stepSimulation((float)dt, 10);
@@ -215,7 +275,9 @@ void System::update(double dt)
 	}
 
 	if (FPSTimer > 1.0) {
-		printf("%d\n", FPS);
+		printf("Update : %d\n", FPS);
+
+		update_stat.update(FPS);
 
 		FPS = 0;
 		FPSTimer = fmod(FPSTimer, 0.1);
@@ -245,9 +307,11 @@ void System::update(double dt)
 			fprintf(flog, "EMT_ERASE, %d\n", i);
 		}
 	}
+
+	Sleep(20);
 }
 
-void System::draw()
+void System::draw(double dt)
 {	
 	auto &localQueue = messageQueue;
 
@@ -285,6 +349,18 @@ void System::draw()
 	smgr->drawAll();
 
 	driver->endScene();
+
+	if (drawFPSTimer > 1.0) {
+		printf("draw : %d\n", drawFPS);
+
+		draw_stat.update(drawFPS);
+
+		drawFPS = 0;
+		drawFPSTimer = fmod(drawFPSTimer, 0.1);
+	}
+
+	drawFPSTimer += dt;
+	++drawFPS;
 }
 
 

@@ -7,6 +7,7 @@
 #include <boost/atomic.hpp>
 
 #include "Message.h"
+#include "Statistic.h"
 
 struct InsertPacket
 {
@@ -59,9 +60,10 @@ public:
 	void releasePhysicsContents();
 
 	void run();
+	void runSingleThread();
 
 	void update(double dt);
-	void draw();
+	void draw(double dt);
 
 	void addRigidBody(double x, double y, double z, double radius);
 	void addSceneNode(double x, double y, double z, double radius, unsigned idx);
@@ -101,6 +103,10 @@ private:
 	double globalTimer;
 	double FPSTimer;
 	unsigned FPS;
+	double drawFPSTimer;
+	unsigned drawFPS;
+
+	FPSStatistic update_stat, draw_stat;
 	
 	bool isRunning;
 	CRITICAL_SECTION cs;

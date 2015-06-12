@@ -16,14 +16,28 @@ using namespace core;
 int main(int argc, char* argv[])
 {
 	double timeOut = 7.0;
+	bool isSingleThreaded = false;
 	if (argc > 1) {
 		sscanf_s(argv[1], "%lf", &timeOut);
+	}
+	if (argc > 2) {
+		char buf[BUFSIZ];
+		sscanf_s(argv[2], "%s", buf);
+
+		if (strcmp(buf, "s") == 0) {
+			isSingleThreaded = true;
+		}
 	}
 	System sys(timeOut);
 
 	sys.init();
 
-	sys.run();
+	if (isSingleThreaded) {
+		sys.runSingleThread();
+	}
+	else {
+		sys.run();
+	}
 
 	sys.release();
 
